@@ -6,23 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RoyFamily Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
 </head>
 
 <body class="bg-gradient-to-tr from-blue-100 to-white text-gray-800 min-h-screen">
-  <!-- Password Screen -->
-  <div id="passwordScreen" class="h-screen flex items-center justify-center">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="h-screen flex items-center justify-center">
     <div class="bg-white p-8 rounded-2xl shadow-xl w-80 text-center">
-      <h2 class="text-2xl font-bold mb-3 text-blue-600">🔐 Welcome to <span id="vaultTitleLogin">Your Vault</span></h2>
-      <p class="text-sm text-gray-500 mb-5">Enter your password to continue</p>
-
-      <input id="passwordInput" type="password" placeholder="Enter password"
-        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-      <button onclick="checkPassword()"
-        class="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all">Unlock</button>
-
-      <p id="errorMsg" class="text-red-500 text-sm mt-3 hidden">❌ Incorrect password. Try again.</p>
-      <p class="text-xs text-gray-400 mt-4">💡 Hint: It's your favorite tech nickname</p>
+      <h2 class="text-2xl font-bold mb-4 text-blue-600">🔐 Welcome to <span id="vaultTitleLogin">Your Vault</span></h2>
+      <button onclick="login()"
+        class="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all">Sign in with Google</button>
     </div>
   </div>
 
@@ -30,7 +25,10 @@
   <div id="mainApp" class="hidden max-w-3xl mx-auto p-6">
     <div class="flex justify-between items-center mb-6">
       <h1 id="vaultTitleMain" class="text-4xl font-bold text-blue-600">Vault</h1>
-      <button onclick="renameVault()" class="text-sm text-blue-500 hover:underline">✏️ Rename Vault</button>
+      <div class="flex gap-4">
+        <button onclick="renameVault()" class="text-sm text-blue-500 hover:underline">✏️ Rename Vault</button>
+        <button onclick="logout()" class="text-sm text-red-500 hover:underline">🚪 Logout</button>
+      </div>
     </div>
     <p class="text-center mb-8">Securely store, download, and manage your personal files.</p>
 
@@ -53,7 +51,19 @@
   </div>
 
   <script>
-    const PASSWORD = 'sanupass123';
+    // Replace this with your actual Firebase config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
 
     function setVaultTitle() {
       let name = localStorage.getItem('vaultName');
@@ -77,18 +87,26 @@
       }
     }
 
-    function checkPassword() {
-      const input = document.getElementById('passwordInput').value;
-      const errorMsg = document.getElementById('errorMsg');
-      if (input === PASSWORD) {
-        document.getElementById('passwordScreen').style.display = 'none';
+    function login() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider);
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').classList.remove('hidden');
+        setVaultTitle();
         displayFiles();
       } else {
-        errorMsg.classList.remove('hidden');
-        setTimeout(() => errorMsg.classList.add('hidden'), 3000);
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('mainApp').classList.add('hidden');
       }
-    }
+    });
 
     function uploadFile() {
       const fileInput = document.getElementById('fileInput');
@@ -106,20 +124,15 @@
         };
         localStorage.setItem(file.name, JSON.stringify(fileData));
         displayFiles();
-        alert('File uploaded locally! (Also commit it in GitHub if needed)');
+        alert('File uploaded locally!');
       };
       reader.readAsDataURL(file);
     }
 
     function deleteFile(fileName) {
-      const confirmPassword = prompt('Enter password to delete this file:');
-      if (confirmPassword === PASSWORD) {
-        localStorage.removeItem(fileName);
-        alert(`${fileName} has been deleted.`);
-        displayFiles(); // Instant UI update
-      } else {
-        alert('Incorrect password. File not deleted.');
-      }
+      localStorage.removeItem(fileName);
+      alert(`${fileName} has been deleted.`);
+      displayFiles();
     }
 
     function displayFiles() {
@@ -141,8 +154,6 @@
         }
       }
     }
-
-    window.onload = setVaultTitle;
   </script>
 </body>
 
