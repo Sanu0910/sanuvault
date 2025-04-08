@@ -53,7 +53,7 @@
   </div>
 
   <script>
-    const PASSWORD = 'S@nu8575';
+    const PASSWORD = 'sanupass123';
 
     function setVaultTitle() {
       let name = localStorage.getItem('vaultName');
@@ -115,8 +115,8 @@
       const confirmPassword = prompt('Enter password to delete this file:');
       if (confirmPassword === PASSWORD) {
         localStorage.removeItem(fileName);
-        displayFiles();
         alert(`${fileName} has been deleted.`);
+        displayFiles(); // Instant UI update
       } else {
         alert('Incorrect password. File not deleted.');
       }
