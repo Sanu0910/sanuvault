@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SanuVault</title>
+  <title>RoyFamily Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -12,7 +12,7 @@
   <!-- Password Screen -->
   <div id="passwordScreen" class="h-screen flex items-center justify-center">
     <div class="bg-white p-8 rounded-2xl shadow-xl w-80 text-center">
-      <h2 class="text-2xl font-bold mb-3 text-blue-600">🔐 Welcome to SanuVault</h2>
+      <h2 class="text-2xl font-bold mb-3 text-blue-600">🔐 Welcome to <span id="vaultTitleLogin">Your Vault</span></h2>
       <p class="text-sm text-gray-500 mb-5">Enter your password to continue</p>
 
       <input id="passwordInput" type="password" placeholder="Enter password"
@@ -28,8 +28,11 @@
 
   <!-- Main App -->
   <div id="mainApp" class="hidden max-w-3xl mx-auto p-6">
-    <h1 class="text-4xl font-bold text-center mb-6 text-blue-600">SanuVault</h1>
-    <p class="text-center mb-8">Securely store and download your personal files.</p>
+    <div class="flex justify-between items-center mb-6">
+      <h1 id="vaultTitleMain" class="text-4xl font-bold text-blue-600">Vault</h1>
+      <button onclick="renameVault()" class="text-sm text-blue-500 hover:underline">✏️ Rename Vault</button>
+    </div>
+    <p class="text-center mb-8">Securely store, download, and manage your personal files.</p>
 
     <!-- Upload Section -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -50,7 +53,29 @@
   </div>
 
   <script>
-    const PASSWORD = 'S@nu8575'; // Change as needed
+    const PASSWORD = 'sanupass123';
+
+    function setVaultTitle() {
+      let name = localStorage.getItem('vaultName');
+      if (!name) {
+        name = prompt("Give your vault a name (e.g., RoyFamily Vault):");
+        if (!name) name = "My Vault";
+        localStorage.setItem('vaultName', name);
+      }
+      document.getElementById("vaultTitleLogin").innerText = name;
+      document.getElementById("vaultTitleMain").innerText = name;
+      document.title = name;
+    }
+
+    function renameVault() {
+      const newName = prompt("Enter new vault name:", localStorage.getItem("vaultName") || "My Vault");
+      if (newName) {
+        localStorage.setItem("vaultName", newName);
+        document.getElementById("vaultTitleLogin").innerText = newName;
+        document.getElementById("vaultTitleMain").innerText = newName;
+        document.title = newName;
+      }
+    }
 
     function checkPassword() {
       const input = document.getElementById('passwordInput').value;
@@ -86,22 +111,38 @@
       reader.readAsDataURL(file);
     }
 
+    function deleteFile(fileName) {
+      const confirmPassword = prompt('Enter password to delete this file:');
+      if (confirmPassword === PASSWORD) {
+        localStorage.removeItem(fileName);
+        displayFiles();
+        alert(`${fileName} has been deleted.`);
+      } else {
+        alert('Incorrect password. File not deleted.');
+      }
+    }
+
     function displayFiles() {
       const fileList = document.getElementById('fileList');
       fileList.innerHTML = '';
       for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
+        if (localStorage.hasOwnProperty(key) && key !== 'vaultName') {
           const fileData = JSON.parse(localStorage.getItem(key));
           const li = document.createElement('li');
           li.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow';
           li.innerHTML = `
             <span>${fileData.name}</span>
-            <a href="${fileData.content}" download="${fileData.name}" class="text-blue-600 hover:underline">Download</a>
+            <div class="flex gap-4">
+              <a href="${fileData.content}" download="${fileData.name}" class="text-blue-600 hover:underline">Download</a>
+              <button onclick="deleteFile('${fileData.name}')" class="text-red-500 hover:underline">Delete</button>
+            </div>
           `;
           fileList.appendChild(li);
         }
       }
     }
+
+    window.onload = setVaultTitle;
   </script>
 </body>
 
