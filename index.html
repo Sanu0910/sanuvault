@@ -4,21 +4,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RoyFamily Vault (Encrypted Cloud)</title>
+  <title>RoyFamily Vault (Preview + Decrypt)</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase SDKs -->
+  <!-- Firebase + CryptoJS -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-  <!-- CryptoJS for AES encryption -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-gradient-to-tr from-blue-100 to-white text-gray-800 min-h-screen">
-  <!-- Login Screen -->
+  <!-- Login -->
   <div id="loginScreen" class="h-screen flex items-center justify-center">
     <div class="bg-white p-8 rounded-2xl shadow-xl w-80 text-center">
       <h2 class="text-2xl font-bold mb-4 text-blue-600">🔐 Welcome to <span id="vaultTitleLogin">Your Vault</span></h2>
-      <button onclick="login()" class="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all">Sign in with Google</button>
+      <button onclick="login()" class="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Sign in with Google</button>
     </div>
   </div>
 
@@ -27,24 +26,32 @@
     <div class="flex justify-between items-center mb-6">
       <h1 id="vaultTitleMain" class="text-4xl font-bold text-blue-600">Vault</h1>
       <div class="flex gap-4">
-        <button onclick="renameVault()" class="text-sm text-blue-500 hover:underline">✏️ Rename Vault</button>
+        <button onclick="renameVault()" class="text-sm text-blue-500 hover:underline">✏️ Rename</button>
         <button onclick="logout()" class="text-sm text-red-500 hover:underline">🚪 Logout</button>
       </div>
     </div>
-    <p class="text-center mb-8">Your files are encrypted and stored securely in the cloud.</p>
+    <p class="text-center mb-8">Encrypted cloud vault with live file preview and decryption.</p>
 
     <!-- Upload Section -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
       <h2 class="text-2xl font-semibold mb-4">Upload Encrypted File</h2>
-      <input id="fileInput" type="file" class="block w-full text-sm text-gray-500 mb-2" />
-      <input id="encryptKey" type="password" placeholder="Enter encryption key" class="block w-full px-3 py-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <input id="fileInput" type="file" class="block w-full text-sm mb-2" />
+      <input id="encryptKey" type="password" placeholder="Enter encryption key" class="block w-full px-3 py-2 border rounded-lg mb-4" />
       <button onclick="uploadEncryptedFile()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Upload</button>
     </div>
 
-    <!-- File List Section -->
+    <!-- File List -->
     <div class="bg-white rounded-xl shadow-md p-6">
       <h2 class="text-2xl font-semibold mb-4">Your Files</h2>
       <ul id="fileList" class="space-y-2"></ul>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
+      <div class="bg-white p-6 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-auto relative">
+        <button onclick="closePreview()" class="absolute top-2 right-4 text-xl text-red-500">✖</button>
+        <div id="previewContent" class="text-center text-sm text-gray-700">Decrypting...</div>
+      </div>
     </div>
   </div>
 
@@ -62,28 +69,6 @@
     const auth = firebase.auth();
     const storage = firebase.storage();
 
-    function setVaultTitle() {
-      let name = localStorage.getItem('vaultName');
-      if (!name) {
-        name = prompt("Give your vault a name (e.g., RoyFamily Vault):");
-        if (!name) name = "My Vault";
-        localStorage.setItem('vaultName', name);
-      }
-      document.getElementById("vaultTitleLogin").innerText = name;
-      document.getElementById("vaultTitleMain").innerText = name;
-      document.title = name;
-    }
-
-    function renameVault() {
-      const newName = prompt("Enter new vault name:", localStorage.getItem("vaultName") || "My Vault");
-      if (newName) {
-        localStorage.setItem("vaultName", newName);
-        document.getElementById("vaultTitleLogin").innerText = newName;
-        document.getElementById("vaultTitleMain").innerText = newName;
-        document.title = newName;
-      }
-    }
-
     function login() {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider);
@@ -99,67 +84,109 @@
         document.getElementById('mainApp').classList.remove('hidden');
         setVaultTitle();
         listFiles(user.uid);
-      } else {
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('mainApp').classList.add('hidden');
       }
     });
 
+    function setVaultTitle() {
+      let name = localStorage.getItem('vaultName') || "RoyFamily Vault";
+      document.getElementById("vaultTitleLogin").innerText = name;
+      document.getElementById("vaultTitleMain").innerText = name;
+      document.title = name;
+    }
+
+    function renameVault() {
+      const newName = prompt("Enter new vault name:", localStorage.getItem("vaultName") || "My Vault");
+      if (newName) {
+        localStorage.setItem("vaultName", newName);
+        setVaultTitle();
+      }
+    }
+
     function uploadEncryptedFile() {
-      const fileInput = document.getElementById('fileInput');
-      const file = fileInput.files[0];
+      const file = document.getElementById('fileInput').files[0];
       const passKey = document.getElementById('encryptKey').value;
       const user = auth.currentUser;
 
-      if (!file || !user || !passKey) {
-        alert('Missing file or encryption key.');
-        return;
-      }
+      if (!file || !passKey) return alert("File & key required");
 
       const reader = new FileReader();
-      reader.onload = function (e) {
-        const base64Data = e.target.result.split(',')[1];
-        const encrypted = CryptoJS.AES.encrypt(base64Data, passKey).toString();
-        const blob = new Blob([encrypted], { type: 'text/plain' });
+      reader.onload = e => {
+        const base64 = e.target.result.split(',')[1];
+        const encrypted = CryptoJS.AES.encrypt(base64, passKey).toString();
+        const encryptedBlob = new Blob([encrypted], { type: "application/octet-stream" });
 
-        const storageRef = storage.ref(`${user.uid}/${file.name}.enc`);
-        storageRef.put(blob).then(() => {
-          alert('Encrypted file uploaded!');
+        const ref = storage.ref(`${user.uid}/${file.name}.enc`);
+        ref.put(encryptedBlob).then(() => {
+          alert("Encrypted file uploaded");
           listFiles(user.uid);
-        }).catch(err => alert('Upload failed: ' + err));
+        });
       };
       reader.readAsDataURL(file);
     }
 
     function listFiles(uid) {
+      const listRef = storage.ref(uid);
       const fileList = document.getElementById('fileList');
       fileList.innerHTML = '';
-      const listRef = storage.ref(uid);
 
-      listRef.listAll().then(result => {
-        result.items.forEach(ref => {
+      listRef.listAll().then(res => {
+        res.items.forEach(ref => {
           ref.getDownloadURL().then(url => {
             const li = document.createElement('li');
-            li.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow';
+            li.className = 'flex justify-between items-center bg-gray-50 p-3 rounded-lg shadow';
             li.innerHTML = `
               <span>${ref.name}</span>
               <div class="flex gap-4">
-                <a href="${url}" target="_blank" class="text-blue-600 hover:underline">Download</a>
+                <button onclick="previewEncryptedFile('${ref.fullPath}', '${url}')" class="text-green-600 hover:underline">🔍 View</button>
+                <a href="${url}" download class="text-blue-600 hover:underline">Download</a>
                 <button onclick="deleteFile('${ref.fullPath}')" class="text-red-500 hover:underline">Delete</button>
               </div>
             `;
             fileList.appendChild(li);
           });
         });
-      }).catch(err => console.error(err));
+      });
     }
 
     function deleteFile(path) {
-      const fileRef = storage.ref(path);
-      fileRef.delete().then(() => {
-        alert('File deleted');
+      const ref = storage.ref(path);
+      ref.delete().then(() => {
+        alert("Deleted");
         listFiles(auth.currentUser.uid);
-      }).catch(err => alert('Delete failed: ' + err));
+      });
+    }
+
+    function previewEncryptedFile(path, url) {
+      const key = prompt("Enter decryption key:");
+      if (!key) return;
+
+      fetch(url)
+        .then(res => res.text())
+        .then(enc => {
+          try {
+            const decrypted = CryptoJS.AES.decrypt(enc, key).toString(CryptoJS.enc.Utf8);
+            const dataURL = "data:application/octet-stream;base64," + decrypted;
+
+            let html = "";
+            if (path.endsWith(".jpg.enc") || path.endsWith(".jpeg.enc") || path.endsWith(".png.enc")) {
+              html = `<img src="${dataURL}" class="max-w-full max-h-[70vh] rounded-lg" />`;
+            } else if (path.endsWith(".pdf.enc")) {
+              html = `<iframe src="${dataURL}" class="w-full h-[70vh]" frameborder="0"></iframe>`;
+            } else {
+              html = `<a href="${dataURL}" download="decrypted_file" class="text-blue-600 underline">Download Decrypted File</a>`;
+            }
+
+            document.getElementById("previewContent").innerHTML = html;
+            document.getElementById("previewModal").classList.remove("hidden");
+          } catch (e) {
+            alert("Failed to decrypt. Wrong key?");
+          }
+        });
+    }
+
+    function closePreview() {
+      document.getElementById("previewModal").classList.add("hidden");
+      document.getElementById("previewContent").innerHTML = "Decrypting...";
     }
   </script>
 </body>
