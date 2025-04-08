@@ -4,12 +4,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RoyFamily Vault</title>
+  <title>RoyFamily Vault (Encrypted Cloud)</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Firebase SDK - COMPAT version (Classic) -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+  <!-- CryptoJS for AES encryption -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-gradient-to-tr from-blue-100 to-white text-gray-800 min-h-screen">
   <!-- Login Screen -->
@@ -29,13 +31,14 @@
         <button onclick="logout()" class="text-sm text-red-500 hover:underline">🚪 Logout</button>
       </div>
     </div>
-    <p class="text-center mb-8">Securely store, download, and manage your personal files.</p>
+    <p class="text-center mb-8">Your files are encrypted and stored securely in the cloud.</p>
 
     <!-- Upload Section -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-      <h2 class="text-2xl font-semibold mb-4">Upload File</h2>
-      <input id="fileInput" type="file" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-      <button onclick="uploadFile()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Upload</button>
+      <h2 class="text-2xl font-semibold mb-4">Upload Encrypted File</h2>
+      <input id="fileInput" type="file" class="block w-full text-sm text-gray-500 mb-2" />
+      <input id="encryptKey" type="password" placeholder="Enter encryption key" class="block w-full px-3 py-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <button onclick="uploadEncryptedFile()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Upload</button>
     </div>
 
     <!-- File List Section -->
@@ -57,6 +60,7 @@
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
+    const storage = firebase.storage();
 
     function setVaultTitle() {
       let name = localStorage.getItem('vaultName');
@@ -89,64 +93,74 @@
       auth.signOut();
     }
 
-    function uploadFile() {
-      const fileInput = document.getElementById('fileInput');
-      const file = fileInput.files[0];
-      if (!file) {
-        alert('Please choose a file to upload.');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const fileData = {
-          name: file.name,
-          content: e.target.result
-        };
-        localStorage.setItem(file.name, JSON.stringify(fileData));
-        displayFiles();
-        alert('File uploaded locally!');
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function deleteFile(fileName) {
-      localStorage.removeItem(fileName);
-      alert(`${fileName} has been deleted.`);
-      displayFiles();
-    }
-
-    function displayFiles() {
-      const fileList = document.getElementById('fileList');
-      fileList.innerHTML = '';
-      for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key) && key !== 'vaultName') {
-          const fileData = JSON.parse(localStorage.getItem(key));
-          const li = document.createElement('li');
-          li.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow';
-          li.innerHTML = `
-            <span>${fileData.name}</span>
-            <div class="flex gap-4">
-              <a href="${fileData.content}" download="${fileData.name}" class="text-blue-600 hover:underline">Download</a>
-              <button onclick="deleteFile('${fileData.name}')" class="text-red-500 hover:underline">Delete</button>
-            </div>
-          `;
-          fileList.appendChild(li);
-        }
-      }
-    }
-
     auth.onAuthStateChanged(user => {
       if (user) {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').classList.remove('hidden');
         setVaultTitle();
-        displayFiles();
+        listFiles(user.uid);
       } else {
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('mainApp').classList.add('hidden');
       }
     });
+
+    function uploadEncryptedFile() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      const passKey = document.getElementById('encryptKey').value;
+      const user = auth.currentUser;
+
+      if (!file || !user || !passKey) {
+        alert('Missing file or encryption key.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const base64Data = e.target.result.split(',')[1];
+        const encrypted = CryptoJS.AES.encrypt(base64Data, passKey).toString();
+        const blob = new Blob([encrypted], { type: 'text/plain' });
+
+        const storageRef = storage.ref(`${user.uid}/${file.name}.enc`);
+        storageRef.put(blob).then(() => {
+          alert('Encrypted file uploaded!');
+          listFiles(user.uid);
+        }).catch(err => alert('Upload failed: ' + err));
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function listFiles(uid) {
+      const fileList = document.getElementById('fileList');
+      fileList.innerHTML = '';
+      const listRef = storage.ref(uid);
+
+      listRef.listAll().then(result => {
+        result.items.forEach(ref => {
+          ref.getDownloadURL().then(url => {
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow';
+            li.innerHTML = `
+              <span>${ref.name}</span>
+              <div class="flex gap-4">
+                <a href="${url}" target="_blank" class="text-blue-600 hover:underline">Download</a>
+                <button onclick="deleteFile('${ref.fullPath}')" class="text-red-500 hover:underline">Delete</button>
+              </div>
+            `;
+            fileList.appendChild(li);
+          });
+        });
+      }).catch(err => console.error(err));
+    }
+
+    function deleteFile(path) {
+      const fileRef = storage.ref(path);
+      fileRef.delete().then(() => {
+        alert('File deleted');
+        listFiles(auth.currentUser.uid);
+      }).catch(err => alert('Delete failed: ' + err));
+    }
   </script>
 </body>
 </html>
