@@ -6,6 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RoyFamily Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase SDK - COMPAT version (Classic) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 </head>
 <body class="bg-gradient-to-tr from-blue-100 to-white text-gray-800 min-h-screen">
   <!-- Login Screen -->
@@ -41,11 +45,7 @@
     </div>
   </div>
 
-  <!-- Firebase Modules -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
+  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyCTJpsSNZSESm0ejdxLAmh6iDoFDVaUnhc",
       authDomain: "royfamilyvault-2d5d0.firebaseapp.com",
@@ -55,8 +55,8 @@
       appId: "1:677028543548:web:public-facing-placeholder"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
 
     function setVaultTitle() {
       let name = localStorage.getItem('vaultName');
@@ -70,7 +70,7 @@
       document.title = name;
     }
 
-    window.renameVault = function() {
+    function renameVault() {
       const newName = prompt("Enter new vault name:", localStorage.getItem("vaultName") || "My Vault");
       if (newName) {
         localStorage.setItem("vaultName", newName);
@@ -78,16 +78,16 @@
         document.getElementById("vaultTitleMain").innerText = newName;
         document.title = newName;
       }
-    };
+    }
 
-    window.login = function() {
-      const provider = new GoogleAuthProvider();
-      signInWithPopup(auth, provider);
-    };
+    function login() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider);
+    }
 
-    window.logout = function() {
-      signOut(auth);
-    };
+    function logout() {
+      auth.signOut();
+    }
 
     function uploadFile() {
       const fileInput = document.getElementById('fileInput');
@@ -109,14 +109,12 @@
       };
       reader.readAsDataURL(file);
     }
-    window.uploadFile = uploadFile;
 
     function deleteFile(fileName) {
       localStorage.removeItem(fileName);
       alert(`${fileName} has been deleted.`);
       displayFiles();
     }
-    window.deleteFile = deleteFile;
 
     function displayFiles() {
       const fileList = document.getElementById('fileList');
@@ -138,7 +136,7 @@
       }
     }
 
-    onAuthStateChanged(auth, (user) => {
+    auth.onAuthStateChanged(user => {
       if (user) {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').classList.remove('hidden');
